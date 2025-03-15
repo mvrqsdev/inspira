@@ -1,0 +1,231 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String             @id @default(cuid())
+  image              String?
+  name               String
+  email              String             @unique
+  emailVerified      DateTime?
+  password           String
+  activeCustomerId   String?
+  master             Boolean            @default(false)
+  status             UserStatus         @default(Invited)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  ActiveCustomer     Customer?          @relation(fields: [activeCustomerId], references: [id], onDelete: SetNull)
+  Permissions        Permission[]
+  Customers          CustomerUser[]
+  ExamsDownloaded    ExamDownload[]
+  WorksNotifications WorkNotification[]
+  Works              Work[]
+
+  @@map("users")
+}
+
+enum UserStatus {
+  Active
+  Inactive
+  Invited
+}
+
+model Permission {
+  userId    String
+  slug      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, slug])
+  @@map("permissions")
+}
+
+model Customer {
+  id            String             @id @default(cuid())
+  logo          String
+  name          String
+  status        CustomerStatus     @default(Active)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  Users         CustomerUser[]
+  Details       CustomerDetail?    @relation("CustomerDetails")
+  Metadatas     CustomerMetadata[]
+  Patients      Patient[]
+  PatientsExams Exam[]
+  Exams         CustomerExam[]
+  Works         Work[]
+  UsersActive   User[]
+
+  @@map("customers")
+}
+
+enum CustomerStatus {
+  Inactive
+  Active
+}
+
+model CustomerUser {
+  userId     String
+  customerId String
+  status     CustomerUserStatus @default(Employee)
+  createdAt  DateTime           @default(now())
+
+  Customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  User     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, customerId])
+  @@map("customer_users")
+}
+
+enum CustomerUserStatus {
+  Admin
+  Manager
+  Employee
+}
+
+model CustomerDetail {
+  customerId   String  @id
+  cnpj         String
+  email        String
+  street       String?
+  number       String?
+  complement   String?
+  neighborhood String?
+  city         String?
+  state        String?
+  postalCode   String?
+  country      String?
+
+  Customer Customer @relation("CustomerDetails", fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("customer_details")
+}
+
+model CustomerMetadata {
+  id         String   @id @default(cuid())
+  customerId String
+  key        String
+  value      String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  Customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("customer_metadata")
+}
+
+model Patient {
+  id         String   @id @default(cuid())
+  customerId String
+  name       String
+  birthDate  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  Customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  Exams    Exam[]
+
+  @@map("patients")
+}
+
+model Work {
+  id         String     @id @default(cuid())
+  customerId String
+  userId     String
+  dateWork   DateTime
+  total      Int
+  status     WorkStatus @default(Progress)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  Customer         Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  User             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  UsersNotificated WorkNotification[]
+  PatientExams     Exam[]
+
+  @@map("works")
+}
+
+enum WorkStatus {
+  Progress
+  Available
+}
+
+model CustomerExam {
+  id            String   @id
+  customerId    String
+  title         String
+  value         Decimal  @db.Money
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  Customer      Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  PatientsExams Exam[]
+
+  @@map("customer_exams")
+}
+
+model Exam {
+  id                String     @id @default(cuid())
+  workId            String
+  customerId        String
+  patientId         String
+  customerExamId    String
+  value             Decimal    @db.Money
+  file              String?
+  observation       String?
+  status            ExamStatus @default(Unavailable)
+  patientDownloaded Boolean    @default(false)
+  accessKey         String     @unique
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  Patient      Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  Customer     Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  Work         Work           @relation(fields: [workId], references: [id], onDelete: Cascade)
+  CustomerExam CustomerExam   @relation(fields: [customerExamId], references: [id], onDelete: Cascade)
+  Downloads    ExamDownload[]
+
+  @@map("exams")
+}
+
+enum ExamStatus {
+  Unavailable
+  Available
+}
+
+model ExamDownload {
+  examId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  Exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  User User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([examId, userId])
+  @@map("exam_downloads")
+}
+
+model WorkNotification {
+  workId    String
+  userId    String
+  status    WorkNotificationStatus @default(Pending)
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+  User      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  Work      Work                   @relation(fields: [workId], references: [id], onDelete: Cascade)
+
+  @@id([workId, userId])
+  @@map("work_notifications")
+}
+
+enum WorkNotificationStatus {
+  Pending
+  Viewed
+}
